@@ -7,14 +7,14 @@
 │                        User Interface (Streamlit)               │
 │                                                                 │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐        │
-│  │  API Key     │  │  CUSIP       │  │  Advanced    │        │
-│  │  Input       │  │  Input       │  │  Options     │        │
+│  │  API Keys    │  │  CUSIP       │  │  Search Mode │        │
+│  │  Input       │  │  + Attributes│  │  Selection   │        │
 │  └──────────────┘  └──────────────┘  └──────────────┘        │
 │                                                                 │
 │  ┌──────────────────────────────────────────────────────────┐ │
-│  │              Results Display                             │ │
-│  │  • Financial Attributes  • WAM Calculation               │ │
-│  │  • Maturity Data        • Sources                        │ │
+│  │              Results Display & Processing Trace          │ │
+│  │  • Financial Attributes  • Sources                       │ │
+│  │  • Step-by-step trace   • Raw LLM Response               │ │
 │  └──────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -25,28 +25,36 @@
 │  ┌──────────────────────────────────────────────────────────┐ │
 │  │  CUSIPPipeline                                           │ │
 │  │  • Orchestrates processing                               │ │
-│  │  • Parses responses                                      │ │
-│  │  • Calculates WAM                                        │ │
+│  │  • Parses responses (JSON/text)                          │ │
 │  │  • Aggregates results                                    │ │
 │  └──────────────────────────────────────────────────────────┘ │
 │                              │                                  │
 │                              ▼                                  │
 │  ┌──────────────────────────────────────────────────────────┐ │
 │  │  GeminiClient                                            │ │
-│  │  • Manages API connection                                │ │
-│  │  • Builds prompts                                        │ │
-│  │  • Extracts sources                                      │ │
-│  │  • Handles errors                                        │ │
+│  │  • Manages dual search modes                             │ │
+│  │  • Custom Search API integration                         │ │
+│  │  • Builds dynamic prompts                                │ │
+│  │  • Extracts and merges sources                           │ │
 │  └──────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
                               │
+                 ┌────────────┴────────────┐
+                 │                         │
+                 ▼                         ▼
+┌──────────────────────────┐  ┌──────────────────────────┐
+│  Custom Search API       │  │  Gemini Search Grounding │
+│  (Pre-fetch results)     │  │  (AI-driven search)      │
+└──────────────────────────┘  └──────────────────────────┘
+                 │                         │
+                 └────────────┬────────────┘
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│               Google Gemini API (with Search Grounding)         │
+│               Google Gemini 2.0 Flash API                       │
 │                                                                 │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐        │
-│  │  Web Search  │→ │  LLM         │→ │  Structured  │        │
-│  │  for CUSIP   │  │  Extraction  │  │  Response    │        │
+│  │  Context     │→ │  LLM         │→ │  Structured  │        │
+│  │  Analysis    │  │  Extraction  │  │  Response    │        │
 │  └──────────────┘  └──────────────┘  └──────────────┘        │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -65,7 +73,7 @@
 ┌──────────┐
 │  User    │
 └────┬─────┘
-     │ 1. Enter CUSIP + API Key
+     │ 1. Enter CUSIP + API Keys + Attributes
      ▼
 ┌──────────────────┐
 │  Streamlit UI    │
@@ -81,47 +89,42 @@
 │  CUSIPPipeline   │──────┐
 └────┬─────────────┘      │
      │ 4. Request data    │
-     ▼                    │ 9. Calculate WAM
-┌──────────────────┐      │    Parse response
-│  GeminiClient    │      │    Aggregate data
+     ▼                    │ 8. Parse response
+┌──────────────────┐      │    Extract attributes
+│  GeminiClient    │      │
 └────┬─────────────┘      │
-     │ 5. Build prompt    │
-     │    + config        │
+     │ 5a. Custom Search  │
+     │     OR             │
+     │ 5b. Gemini Search  │
+     ▼                    │
+┌──────────────────┐      │
+│  Search Phase    │      │
+│  (Custom/Gemini) │      │
+└────┬─────────────┘      │
+     │ 6. Build prompt    │
+     │    with context    │
      ▼                    │
 ┌──────────────────┐      │
 │  Gemini API      │      │
-│  (with Search)   │      │
+│  2.0 Flash       │      │
 └────┬─────────────┘      │
-     │ 6. Search web      │
-     │    for CUSIP       │
-     ▼                    │
-┌──────────────────┐      │
-│  Data Sources    │      │
-│  (Web)           │      │
-└────┬─────────────┘      │
-     │ 7. Return data     │
-     ▼                    │
-┌──────────────────┐      │
-│  Gemini API      │      │
-│  (Extract)       │      │
-└────┬─────────────┘      │
-     │ 8. Structured      │
-     │    response        │
+     │ 7. Structured      │
+     │    JSON response   │
      ▼                    │
 ┌──────────────────┐      │
 │  GeminiClient    │◄─────┘
 └────┬─────────────┘
-     │ 10. Return result
+     │ 9. Return result + sources
      ▼
 ┌──────────────────┐
 │  CUSIPPipeline   │
 └────┬─────────────┘
-     │ 11. Format for display
+     │ 10. Format for display
      ▼
 ┌──────────────────┐
 │  Streamlit UI    │
 └────┬─────────────┘
-     │ 12. Render results
+     │ 11. Render results + trace
      ▼
 ┌──────────┐
 │  User    │
@@ -136,7 +139,8 @@ app.py (Streamlit UI)
   ├── src.services.pipeline (CUSIPPipeline)
   │     │
   │     ├── src.services.gemini_client (GeminiClient)
-  │     │     └── google.generativeai (Gemini API)
+  │     │     ├── google.genai (Gemini API SDK)
+  │     │     └── requests (Custom Search API)
   │     │
   │     └── src.models.schemas (Data Models)
   │           ├── CUSIPAnalysisResult
@@ -154,17 +158,27 @@ app.py (Streamlit UI)
 Input Stage:
 ┌─────────────┐
 │ CUSIP: str  │
-│ API Key:str │
+│ API Keys    │
 │ Attrs: list │
+│ Search Mode │
 └──────┬──────┘
+       │
+       ▼
+
+Search Stage:
+┌──────────────────────────┐
+│ Dual Search Mode         │
+│ • Custom Search API OR   │
+│ • Gemini Search Ground   │
+└──────┬───────────────────┘
        │
        ▼
 
 Processing Stage:
 ┌──────────────────────────┐
 │ Gemini Query             │
-│ • Prompt building        │
-│ • Web search grounding   │
+│ • Dynamic prompt build   │
+│ • Context incorporation  │
 │ • LLM extraction         │
 └──────┬───────────────────┘
        │
@@ -174,17 +188,8 @@ Parsing Stage:
 ┌──────────────────────────┐
 │ Response Parsing         │
 │ • JSON extraction        │
-│ • Text extraction        │
+│ • Fallback text parse    │
 │ • Data validation        │
-└──────┬───────────────────┘
-       │
-       ▼
-
-Computation Stage:
-┌──────────────────────────┐
-│ WAM Calculation          │
-│ • Σ(Mat_i × Prin_i)      │
-│ • / Σ(Prin_i)            │
 └──────┬───────────────────┘
        │
        ▼
@@ -193,10 +198,9 @@ Output Stage:
 ┌──────────────────────────┐
 │ CUSIPAnalysisResult      │
 │ • attributes: dict       │
-│ • wam_years: float       │
-│ • maturities: list       │
 │ • sources: list          │
 │ • error: str|None        │
+│ • raw_response: str      │
 └──────────────────────────┘
 ```
 
@@ -204,17 +208,6 @@ Output Stage:
 
 ```
 Data Models:
-
-FinancialAttribute (Enum)
-  • WAM
-  • MATURITY
-  • COUPON_RATE
-  • YIELD
-  • CREDIT_RATING
-  • ISSUER
-  • ISSUE_DATE
-  • PAR_VALUE
-  • SECURITY_TYPE
 
 @dataclass
 FinancialAttributeData
@@ -232,21 +225,13 @@ MaturityData
   • source: str
 
 @dataclass
-CUSIPData
-  • cusip: str
-  • attributes: Dict[str, FinancialAttributeData]
-  • maturities: List[MaturityData]
-  • sources: List[str]
-
-@dataclass
 CUSIPAnalysisResult
   • cusip: str
   • attributes: Dict[str, Any]
-  • wam_years: float
-  • wam_months: float
-  • maturities: List[MaturityData]
   • sources: List[str]
+  • raw_llm_response: str
   • error: str
+  • metadata: Dict[str, Any]
 ```
 
 ## Service Layer
@@ -254,29 +239,32 @@ CUSIPAnalysisResult
 ```
 GeminiClient
   │
-  ├── __init__(api_key, model_name)
-  │     • Configure API
-  │     • Set up search grounding
-  │     • Initialize safety settings
+  ├── __init__(api_key, model_name, use_custom_search, ...)
+  │     • Configure Gemini API
+  │     • Set up search mode
+  │     • Initialize Custom Search if enabled
   │
-  ├── query_cusip_attributes(cusip, attributes)
-  │     • Build prompt
-  │     • Query Gemini
-  │     • Extract sources
+  ├── query_cusip_attributes(cusip, attributes, trace_callback)
+  │     • Execute search (Custom or Gemini)
+  │     • Build dynamic prompt
+  │     • Query Gemini with context
+  │     • Extract and merge sources
   │     • Return structured response
   │
-  ├── _build_cusip_query_prompt(cusip, attributes)
-  │     • Format attribute list
-  │     • Add instructions
-  │     • Specify output format
+  ├── _perform_custom_search(query, num_results, trace_callback)
+  │     • Call Google Custom Search API
+  │     • Parse search results
+  │     • Return formatted results
   │
-  ├── _extract_sources(response)
-  │     • Parse grounding metadata
-  │     • Extract web URLs
-  │     • Deduplicate
+  ├── _build_cusip_query_prompt(cusip, attributes, custom_search_results)
+  │     • Build dynamic JSON schema
+  │     • Incorporate search results if available
+  │     • Add extraction instructions
   │
-  └── query_with_custom_prompt(prompt)
-        • Generic query method
+  └── _extract_sources(response)
+        • Parse grounding metadata
+        • Extract web URLs
+        • Deduplicate and return
 
 
 CUSIPPipeline
@@ -284,12 +272,12 @@ CUSIPPipeline
   ├── __init__(gemini_client)
   │     • Store client reference
   │
-  ├── process_cusip(cusip, attributes)
+  ├── process_cusip(cusip, attributes, trace_callback)
   │     • Query Gemini
   │     • Parse response
-  │     • Return result
+  │     • Return result with trace
   │
-  ├── _parse_gemini_response(cusip, response_data)
+  ├── _parse_gemini_response(cusip, response_data, sources)
   │     • Try JSON parsing
   │     • Fallback to text parsing
   │     • Build result object
@@ -300,19 +288,64 @@ CUSIPPipeline
   │
   ├── _build_result_from_json(cusip, data, sources)
   │     • Extract attributes
-  │     • Parse maturities
-  │     • Calculate WAM
+  │     • Handle nested data
   │
-  ├── _build_result_from_text(cusip, text, sources)
-  │     • Pattern matching
-  │     • Attribute extraction
-  │
-  ├── _calculate_wam(maturities)
-  │     • Weighted average
-  │     • Error handling
-  │
-  └── get_wam_only(cusip)
-        • Focused WAM query
+  └── _extract_attributes_from_text(text)
+        • Pattern matching
+        • Attribute extraction
+```
+
+## Search Mode Comparison
+
+```
+Gemini Search Grounding:
+┌─────────────────────────┐
+│ User Query              │
+└───────┬─────────────────┘
+        │
+        ▼
+┌─────────────────────────┐
+│ Gemini performs search  │
+│ autonomously            │
+└───────┬─────────────────┘
+        │
+        ▼
+┌─────────────────────────┐
+│ AI extracts data        │
+│ from search results     │
+└───────┬─────────────────┘
+        │
+        ▼
+┌─────────────────────────┐
+│ Structured response     │
+└─────────────────────────┘
+
+Custom Search API:
+┌─────────────────────────┐
+│ User Query              │
+└───────┬─────────────────┘
+        │
+        ▼
+┌─────────────────────────┐
+│ Call Custom Search API  │
+│ Pre-fetch results       │
+└───────┬─────────────────┘
+        │
+        ▼
+┌─────────────────────────┐
+│ Embed results in prompt │
+└───────┬─────────────────┘
+        │
+        ▼
+┌─────────────────────────┐
+│ Gemini extracts from    │
+│ provided context        │
+└───────┬─────────────────┘
+        │
+        ▼
+┌─────────────────────────┐
+│ Structured response     │
+└─────────────────────────┘
 ```
 
 ## Error Handling Flow
@@ -332,8 +365,17 @@ CUSIPPipeline
    OK      ERROR──→ Display to user
     │
     ▼
+   Search Phase
+    • Custom Search API errors
+    • Network timeouts
+         │
+    ┌────┴────┐
+    │         │
+   OK      FALLBACK──→ Continue with empty results
+    │
+    ▼
    API Call
-    • Network errors
+    • Gemini API errors
     • Rate limits
     • Invalid response
          │
@@ -350,15 +392,6 @@ CUSIPPipeline
     ┌────┴────┐
     │         │
    OK      FALLBACK──→ Try alternative parsing
-    │
-    ▼
- Computation
-    • WAM calculation
-    • Data aggregation
-         │
-    ┌────┴────┐
-    │         │
-   OK      PARTIAL──→ Return partial results
     │
     ▼
 ┌─────────────────┐
@@ -407,9 +440,20 @@ Option 3: Custom Server
   └────────────────┘
 ```
 
+## Key Features
+
+- **Dual Search Modes**: Support for both AI-driven and controlled search
+- **Dynamic Schema**: JSON structure built based on user-requested attributes
+- **Comprehensive Tracing**: Step-by-step visibility into processing
+- **Source Merging**: Combines sources from Custom Search and Gemini grounding
+- **Flexible Extraction**: Dynamic attribute retrieval - ask for any financial data
+- **Robust Error Handling**: Graceful degradation with fallback mechanisms
+- **Clean Architecture**: Separation of concerns with clear module boundaries
+
 This architecture provides:
 - Clear separation of concerns
+- Dual search mode flexibility
 - Easy testing and maintenance
-- Flexible deployment options
 - Scalable design
-- Robust error handling
+- Comprehensive observability through tracing
+- Robust error handling with fallbacks
