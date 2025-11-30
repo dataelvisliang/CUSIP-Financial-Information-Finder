@@ -111,6 +111,13 @@ class GeminiClient:
             response.raise_for_status()
             data = response.json()
 
+            # Check for API errors in response
+            if "error" in data:
+                error_msg = data["error"].get("message", "Unknown error")
+                trace(f"  • API Error: {error_msg}")
+                logger.error(f"Custom search API error: {error_msg}")
+                return []
+
             search_info = data.get("searchInformation", {})
             trace(f"  • Search completed: {search_info.get('totalResults', '0')} results in {search_info.get('searchTime', 0):.2f}s")
             trace("")
@@ -127,6 +134,16 @@ class GeminiClient:
 
             return results
 
+        except requests.exceptions.HTTPError as e:
+            error_detail = ""
+            try:
+                error_data = e.response.json()
+                error_detail = error_data.get("error", {}).get("message", str(e))
+            except:
+                error_detail = str(e)
+            trace(f"  • HTTP Error: {error_detail}")
+            logger.error(f"Custom search HTTP error: {error_detail}")
+            return []
         except Exception as e:
             trace(f"  • Error: {str(e)}")
             logger.error(f"Custom search error: {str(e)}")
